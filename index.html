@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research Agent</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f5f7;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #0f0f1a;
+    }
+
+    header p {
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 780px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    /* ── Query input ── */
+    .query-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    #query-input {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      font-size: 0.95rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s;
+      background: #fafafa;
+      color: #1a1a2e;
+    }
+
+    #query-input:focus {
+      border-color: #4f46e5;
+      background: #fff;
+    }
+
+    #research-btn {
+      padding: 0.65rem 1.4rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    #research-btn:hover:not(:disabled) { background: #4338ca; }
+    #research-btn:active:not(:disabled) { transform: scale(0.98); }
+    #research-btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    /* ── Status log ── */
+    #status-section { display: none; margin-top: 1.5rem; }
+
+    #status-section h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-bottom: 0.75rem;
+    }
+
+    #status-log {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.875rem;
+      color: #374151;
+      padding: 0.45rem 0.75rem;
+      background: #f9fafb;
+      border-radius: 6px;
+      border-left: 3px solid #e5e7eb;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .status-item.active { border-left-color: #4f46e5; color: #1a1a2e; }
+    .status-item.done   { border-left-color: #10b981; color: #6b7280; }
+    .status-item.error  { border-left-color: #ef4444; color: #ef4444; }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #d1d5db;
+    }
+    .status-item.active .dot {
+      background: #4f46e5;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .status-item.done .dot  { background: #10b981; }
+    .status-item.error .dot { background: #ef4444; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Report ── */
+    #report-section { display: none; margin-top: 1.5rem; }
+
+    .report-block { margin-top: 1.25rem; }
+
+    .report-block h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-bottom: 0.6rem;
+    }
+
+    /* Executive summary */
+    #exec-summary {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #374151;
+      background: #f0f4ff;
+      border-left: 4px solid #4f46e5;
+      padding: 0.85rem 1rem;
+      border-radius: 0 8px 8px 0;
+    }
+
+    /* Markdown report */
+    #markdown-report {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: #374151;
+    }
+    #markdown-report h1, #markdown-report h2, #markdown-report h3 {
+      font-weight: 600;
+      margin-top: 1.2em;
+      margin-bottom: 0.4em;
+      color: #111827;
+    }
+    #markdown-report h1 { font-size: 1.15rem; }
+    #markdown-report h2 { font-size: 1rem; }
+    #markdown-report h3 { font-size: 0.925rem; }
+    #markdown-report p  { margin-bottom: 0.75em; }
+    #markdown-report ul, #markdown-report ol {
+      padding-left: 1.4em;
+      margin-bottom: 0.75em;
+    }
+    #markdown-report li { margin-bottom: 0.3em; }
+    #markdown-report code {
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 0.82em;
+      background: #f3f4f6;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    #markdown-report pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 0.75em;
+    }
+    #markdown-report pre code { background: none; padding: 0; color: inherit; }
+    #markdown-report a { color: #4f46e5; text-decoration: none; }
+    #markdown-report a:hover { text-decoration: underline; }
+    #markdown-report hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+    #markdown-report blockquote {
+      border-left: 3px solid #d1d5db;
+      padding-left: 1em;
+      color: #6b7280;
+      margin-bottom: 0.75em;
+    }
+
+    /* Follow-up questions */
+    #followup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .followup-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.6rem 0.85rem;
+      background: #fafafa;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: #374151;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.12s, border-color 0.12s;
+      width: 100%;
+    }
+
+    .followup-item:hover {
+      background: #f0f4ff;
+      border-color: #c7d2fe;
+      color: #4f46e5;
+    }
+
+    .followup-item::before {
+      content: "→";
+      font-size: 0.8rem;
+      color: #9ca3af;
+      flex-shrink: 0;
+      margin-top: 0.05em;
+    }
+
+    .followup-item:hover::before { color: #4f46e5; }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Research Agent</h1>
+    <p>AI-powered deep research — ask anything.</p>
+  </header>
+
+  <div class="card">
+    <div class="query-row">
+      <input
+        id="query-input"
+        type="text"
+        placeholder="e.g. What are the latest breakthroughs in quantum computing?"
+        autocomplete="off"
+      />
+      <button id="research-btn">Research</button>
+    </div>
+
+    <!-- Status log -->
+    <div id="status-section">
+      <h2>Progress</h2>
+      <div id="status-log"></div>
+    </div>
+
+    <!-- Report -->
+    <div id="report-section">
+      <div class="report-block">
+        <h2>Executive Summary</h2>
+        <p id="exec-summary"></p>
+      </div>
+
+      <div class="report-block" id="markdown-block">
+        <h2>Full Report</h2>
+        <div id="markdown-report"></div>
+      </div>
+
+      <div class="report-block" id="followup-block">
+        <h2>Follow-up Questions</h2>
+        <div id="followup-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Powered by Claude · GPT-4o · Tavily</footer>
+
+  <script>
+    const API_URL = 'https://web-production-84851.up.railway.app/research';
+
+    const queryInput  = document.getElementById('query-input');
+    const btn         = document.getElementById('research-btn');
+    const statusSec   = document.getElementById('status-section');
+    const statusLog   = document.getElementById('status-log');
+    const reportSec   = document.getElementById('report-section');
+    const execSummary = document.getElementById('exec-summary');
+    const mdReport    = document.getElementById('markdown-report');
+    const followupList= document.getElementById('followup-list');
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    let lastStatusEl = null;
+
+    function addStatus(message, state = 'active') {
+      // Mark the previous active item as done
+      if (lastStatusEl && lastStatusEl.classList.contains('active')) {
+        lastStatusEl.classList.remove('active');
+        lastStatusEl.classList.add('done');
+      }
+
+      const el = document.createElement('div');
+      el.className = `status-item ${state}`;
+      el.innerHTML = `<span class="dot"></span><span>${escapeHtml(message)}</span>`;
+      statusLog.appendChild(el);
+      lastStatusEl = state === 'active' ? el : null;
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return el;
+    }
+
+    function finalizeLastStatus() {
+      if (lastStatusEl) {
+        lastStatusEl.classList.remove('active');
+        lastStatusEl.classList.add('done');
+        lastStatusEl = null;
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function reset() {
+      statusLog.innerHTML  = '';
+      followupList.innerHTML = '';
+      mdReport.innerHTML   = '';
+      execSummary.textContent = '';
+      statusSec.style.display  = 'none';
+      reportSec.style.display  = 'none';
+      lastStatusEl = null;
+    }
+
+    function showReport(report) {
+      finalizeLastStatus();
+      reportSec.style.display = 'block';
+
+      // Executive summary
+      execSummary.textContent = report.executive_summary || '';
+
+      // Markdown report
+      if (report.markdown_report) {
+        mdReport.innerHTML = marked.parse(report.markdown_report);
+      }
+
+      // Follow-up questions
+      const questions = report.follow_up_questions || [];
+      if (questions.length) {
+        questions.forEach(q => {
+          const btn = document.createElement('button');
+          btn.className = 'followup-item';
+          btn.textContent = q;
+          btn.addEventListener('click', () => {
+            queryInput.value = q;
+            startResearch();
+          });
+          followupList.appendChild(btn);
+        });
+      } else {
+        document.getElementById('followup-block').style.display = 'none';
+      }
+    }
+
+    // ── Main fetch with SSE parsing ────────────────────────────────────────────
+
+    async function startResearch() {
+      const query = queryInput.value.trim();
+      if (!query) return;
+
+      reset();
+      btn.disabled = true;
+      btn.textContent = 'Researching…';
+      statusSec.style.display = 'block';
+      addStatus('Starting research…');
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error ${response.status}: ${response.statusText}`);
+        }
+
+        const reader  = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer    = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE lines are separated by \n; events by \n\n
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // hold back the potentially incomplete last line
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue; // blank / comment
+
+            if (trimmed.startsWith('data:')) {
+              const raw = trimmed.slice(5).trim();
+              if (!raw || raw === '[DONE]') continue;
+
+              let payload;
+              try { payload = JSON.parse(raw); } catch { continue; }
+
+              if (payload.type === 'status' && payload.message) {
+                addStatus(payload.message);
+              } else if (payload.type === 'report') {
+                showReport(payload.data || payload);
+              } else if (payload.executive_summary) {
+                showReport(payload);
+              } else if (payload.type === 'error') {
+                addStatus(payload.message || 'An error occurred.', 'error');
+              }
+            }
+          }
+        }
+
+        // Handle any remaining buffer
+        if (buffer.trim().startsWith('data:')) {
+          const raw = buffer.trim().slice(5).trim();
+          try {
+            const payload = JSON.parse(raw);
+            if (payload.executive_summary) showReport(payload);
+          } catch {}
+        }
+
+        finalizeLastStatus();
+        if (reportSec.style.display === 'none') {
+          addStatus('Done.', 'done');
+        }
+
+      } catch (err) {
+        finalizeLastStatus();
+        addStatus(`Error: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Research';
+      }
+    }
+
+    // ── Event listeners ────────────────────────────────────────────────────────
+
+    btn.addEventListener('click', startResearch);
+
+    queryInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        startResearch();
+      }
+    });
+  </script>
+</body>
+</html>
